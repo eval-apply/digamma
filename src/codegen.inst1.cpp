@@ -452,7 +452,9 @@ codegen_t::emit_ret_iloc(context_t& ctx, scm_obj_t inst)
 
     // valid
     IRB.SetInsertPoint(undef_false);
-    ctx.reg_cache_copy(vm);
+    //ctx.reg_cache_copy(vm);
+    ctx.reg_cont.copy(vm);
+    ctx.reg_value.copy(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
     // invalid
@@ -474,7 +476,8 @@ codegen_t::emit_ret_cons(context_t& ctx, scm_obj_t inst)
 
     auto sp_minus_1 = IRB.CreateLoad(IRB.CreateGEP(IRB.CreateBitOrPointerCast(sp, IntptrPtrTy), VALUE_INTPTR(-1)));
     auto c_make_pair = M->getOrInsertFunction("c_make_pair", IntptrTy, IntptrPtrTy, IntptrTy, IntptrTy);
-    ctx.reg_cache_copy_except_value(vm);
+    // ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, IRB.CreateCall(c_make_pair, { vm, sp_minus_1, val }));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 }
@@ -569,7 +572,8 @@ codegen_t::emit_if_nullp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(taken_true);
-    ctx.reg_cache_copy_except_value(vm);
+    // ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -641,7 +645,9 @@ codegen_t::emit_if_true_ret(context_t& ctx, scm_obj_t inst)
 
     // pop
     IRB.SetInsertPoint(value_nonfalse);
-    ctx.reg_cache_copy(vm);
+    //ctx.reg_cache_copy(vm);
+    ctx.reg_cont.copy(vm);
+    ctx.reg_value.copy(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
     // continue
@@ -665,7 +671,9 @@ codegen_t::emit_if_false_ret(context_t& ctx, scm_obj_t inst)
 
     // pop
     IRB.SetInsertPoint(value_false);
-    ctx.reg_cache_copy(vm);
+    //ctx.reg_cache_copy(vm);
+    ctx.reg_cont.copy(vm);
+    ctx.reg_value.copy(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
     // continue
@@ -689,7 +697,8 @@ codegen_t::emit_if_true_ret_const(context_t& ctx, scm_obj_t inst)
 
     // pop
     IRB.SetInsertPoint(value_nonfalse);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1226,7 +1235,8 @@ codegen_t::emit_if_eqp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(taken_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1325,7 +1335,8 @@ codegen_t::emit_if_not_eqp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(taken_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1349,7 +1360,8 @@ codegen_t::emit_if_not_pairp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // not pair
     IRB.SetInsertPoint(pair_false);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1374,7 +1386,8 @@ codegen_t::emit_if_false_ret_const(context_t& ctx, scm_obj_t inst)
 
     // pop
     IRB.SetInsertPoint(value_false);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1399,13 +1412,15 @@ codegen_t::emit_ret_nullp(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(taken_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(scm_true));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
     // not taken
     IRB.SetInsertPoint(taken_false);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(scm_false));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 }
@@ -1432,7 +1447,8 @@ codegen_t::emit_ret_pairp(context_t& ctx, scm_obj_t inst)
 
     // not taken
     IRB.SetInsertPoint(taken_false);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(scm_false));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 }
@@ -1472,13 +1488,15 @@ codegen_t::emit_ret_eqp(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(taken_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(scm_true));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
     // not taken
     IRB.SetInsertPoint(taken_false);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(scm_false));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 }
@@ -1662,7 +1680,8 @@ codegen_t::emit_if_symbolp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(symbol_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1686,7 +1705,8 @@ codegen_t::emit_if_pairp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(pair_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1711,7 +1731,8 @@ codegen_t::emit_if_not_nullp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(taken_true);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1735,7 +1756,8 @@ codegen_t::emit_if_not_symbolp_ret_const(context_t& ctx, scm_obj_t inst)
 
     // taken
     IRB.SetInsertPoint(symbol_false);
-    ctx.reg_cache_copy_except_value(vm);
+    //ctx.reg_cache_copy_except_value(vm);
+    ctx.reg_cont.copy(vm);
     CREATE_STORE_VM_REG(vm, m_value, VALUE_INTPTR(operands));
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
@@ -1987,6 +2009,8 @@ codegen_t::emit_ret_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
 
     // valid
     IRB.SetInsertPoint(undef_false);
+    //ctx.reg_value.copy(vm);
+    ctx.reg_cont.copy(vm);
     ctx.reg_value.copy(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 
