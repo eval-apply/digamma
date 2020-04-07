@@ -127,12 +127,27 @@ codegen_t::context_t::reg_cache_copy(llvm::Value* vm)
 }
 
 void
+codegen_t::context_t::reg_cache_copy_except_sp(llvm::Value* vm)
+{
+    reg_fp.copy(vm);
+    reg_env.copy(vm);
+    reg_cont.copy(vm);
+    reg_value.copy(vm);
+}
+void
 codegen_t::context_t::reg_cache_copy_except_value(llvm::Value* vm)
 {
     reg_fp.copy(vm);
     reg_env.copy(vm);
     reg_cont.copy(vm);
     reg_sp.copy(vm);
+}
+
+void
+codegen_t::context_t::reg_cache_copy_only_value_and_cont(llvm::Value* vm)
+{
+    reg_cont.copy(vm);
+    reg_value.copy(vm);
 }
 
 void
