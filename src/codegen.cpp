@@ -487,11 +487,9 @@ codegen_t::transform(context_t ctx, scm_obj_t inst, bool insert_stack_check)
                 ctx.m_function = emit_call(ctx, inst);
             } break;
             case VMOP_RET_GLOC: {
-                reg_cache_synchronize sync(ctx);
                 emit_ret_gloc(ctx, inst);
             } break;
             case VMOP_RET_CONST: {
-                reg_cache_synchronize sync(ctx);
                 emit_ret_const(ctx, inst);
             } break;
             case VMOP_RET_ILOC: {
@@ -693,7 +691,6 @@ codegen_t::transform(context_t ctx, scm_obj_t inst, bool insert_stack_check)
                 emit_ret_pairp(ctx, inst);
             } break;
             case VMOP_RET_CLOSE: {
-                reg_cache_synchronize sync(ctx);
                 emit_ret_close(ctx, inst);
             } break;
             case VMOP_PUSH_NADD_ILOC: {
