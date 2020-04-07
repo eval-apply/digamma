@@ -343,7 +343,7 @@ codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
         printf("emit_apply_gloc: self recursive: %s\n", symbol->name);
 #endif
         emit_prepair_apply(ctx, ctx.m_top_level_closure);
-        ctx.reg_cache_copy(vm);
+        ctx.reg_cache_copy_except_value(vm);
 
         auto call2 = IRB.CreateCall(ctx.m_top_level_function, { vm });
         call2->setTailCallKind(CallInst::TCK_MustTail);
@@ -362,7 +362,7 @@ codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
                 if (F2 == NULL) fatal("%s:%u inconsistent state", __FILE__, __LINE__);
                 m_usage.inners++;
                 emit_prepair_apply(ctx, closure);
-                ctx.reg_cache_copy(vm);
+                ctx.reg_cache_copy_except_value(vm);
                 auto call2 = IRB.CreateCall(F2, {vm});
                 call2->setTailCallKind(CallInst::TCK_MustTail);
                 IRB.CreateRet(call2);
@@ -384,7 +384,7 @@ codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
                     auto procType = FunctionType::get(IntptrTy, { IntptrPtrTy }, false);
                     auto ptr = ConstantExpr::getIntToPtr(VALUE_INTPTR(closure->code), procType->getPointerTo());
                     emit_prepair_apply(ctx, closure);
-                    ctx.reg_cache_copy(vm);
+                    ctx.reg_cache_copy_except_value(vm);
                     auto call = IRB.CreateCall(ptr, { vm });
                     call->setTailCallKind(CallInst::TCK_MustTail);
                     IRB.CreateRet(call);
@@ -1070,7 +1070,7 @@ codegen_t::emit_apply_iloc_local(context_t& ctx, scm_obj_t inst)
         ctx.reg_sp.store(vm, ea1);
         ctx.reg_fp.store(vm, ea1);
         ctx.reg_env.store(vm, CREATE_LEA_ENV_REC(env, up));
-        ctx.reg_cache_copy(vm);
+        ctx.reg_cache_copy_except_value(vm);
         Function* L = ctx.m_local_functions[function_index];
         if (L == NULL) {
             fatal("%s:%u emit_apply_iloc_local L = %p, level = %d index = %d ctx.m_depth = %d function_index = %x \n", __FILE__, __LINE__, L, level, index, ctx.m_depth, function_index);
@@ -1118,7 +1118,7 @@ codegen_t::emit_car_iloc(context_t& ctx, scm_obj_t inst)
     ctx.reg_cache_copy(vm);
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
     auto c_error_car_iloc = M->getOrInsertFunction("c_error_car_iloc", VoidTy, IntptrPtrTy, IntptrTy);
-    IRB.CreateCall(c_error_car_iloc, {vm, pair});
+    IRB.CreateCall(c_error_car_iloc, { vm, pair });
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_resume_loop));
 
     // pair
@@ -1146,7 +1146,7 @@ codegen_t::emit_cdr_iloc(context_t& ctx, scm_obj_t inst)
     ctx.reg_cache_copy(vm);
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
     auto c_error_cdr_iloc = M->getOrInsertFunction("c_error_cdr_iloc", VoidTy, IntptrPtrTy, IntptrTy);
-    IRB.CreateCall(c_error_cdr_iloc, {vm, pair});
+    IRB.CreateCall(c_error_cdr_iloc, { vm, pair });
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_resume_loop));
 
     // pair
@@ -1255,7 +1255,7 @@ codegen_t::emit_cadr_iloc(context_t& ctx, scm_obj_t inst)
     ctx.reg_cache_copy(vm);
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
     auto c_error_cadr_iloc = M->getOrInsertFunction("c_error_cadr_iloc", VoidTy, IntptrPtrTy, IntptrTy);
-    IRB.CreateCall(c_error_cadr_iloc, {vm, pair});
+    IRB.CreateCall(c_error_cadr_iloc, { vm, pair });
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_resume_loop));
 
     // pair
@@ -1289,7 +1289,7 @@ codegen_t::emit_cddr_iloc(context_t& ctx, scm_obj_t inst)
     ctx.reg_cache_copy(vm);
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
     auto c_error_cadr_iloc = M->getOrInsertFunction("c_error_cadr_iloc", VoidTy, IntptrPtrTy, IntptrTy);
-    IRB.CreateCall(c_error_cadr_iloc, {vm, pair});
+    IRB.CreateCall(c_error_cadr_iloc, { vm, pair });
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_resume_loop));
 
     // pair
