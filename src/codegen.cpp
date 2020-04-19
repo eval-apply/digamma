@@ -15,6 +15,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils.h>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -262,6 +263,8 @@ codegen_t::optimizeModule(ThreadSafeModule TSM)
 
     legacy::FunctionPassManager FPM(&M);
     B.populateFunctionPassManager(FPM);
+    FPM.add(llvm::createPromoteMemoryToRegisterPass());
+
     FPM.doInitialization();
     for (Function &F : M) FPM.run(F);
     FPM.doFinalization();
