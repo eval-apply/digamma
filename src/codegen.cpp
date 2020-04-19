@@ -779,6 +779,15 @@ codegen_t::transform(context_t ctx, scm_obj_t inst, bool insert_stack_check)
     }
 }
 
+AllocaInst*
+codegen_t::CreateEntryBlockAlloca(context_t& ctx, llvm::Type* type)
+{
+    DECLEAR_CONTEXT_VARS;
+    DECLEAR_COMMON_TYPES;
+    IRBuilder<> TB(&F->getEntryBlock(), F->getEntryBlock().begin());
+    return TB.CreateAlloca(type);
+}
+
 void
 codegen_t::display_codegen_statistics(scm_port_t port)
 {

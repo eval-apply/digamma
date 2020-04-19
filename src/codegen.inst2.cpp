@@ -1,16 +1,9 @@
 extern scm_obj_t subr_num_eq(VM* vm, int argc, scm_obj_t argv[]);
 
-AllocaInst*
-codegen_t::CreateEntryBlockAlloca(context_t& ctx, llvm::Type* type)
-{
-    DECLEAR_CONTEXT_VARS;
-    DECLEAR_COMMON_TYPES;
-    IRBuilder<> TB(&F->getEntryBlock(), F->getEntryBlock().begin());
-    return TB.CreateAlloca(type);
-}
+#if ENABLE_INLINE_SUBR
 
 void
-codegen_t::emit_subr_a2_maybe_fail_num_eq(context_t& ctx, scm_obj_t inst, scm_subr_t subr, AllocaInst* ans, BasicBlock* CONTINUE, BasicBlock* FALLBACK)
+codegen_t::emit_subr_inline_may_fail_num_eq_a2(context_t& ctx, scm_obj_t inst, scm_subr_t subr, AllocaInst* ans, BasicBlock* CONTINUE, BasicBlock* FALLBACK)
 {
     //puts("emit_subr_a2_maybe_fail_num_eq");
     DECLEAR_CONTEXT_VARS;
@@ -42,22 +35,22 @@ codegen_t::emit_subr_a2_maybe_fail_num_eq(context_t& ctx, scm_obj_t inst, scm_su
 }
 
 void
-codegen_t::emit_subr_a2_maybe_fail(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
+codegen_t::emit_subr_inline_may_fail(context_t& ctx, intptr_t argc, scm_obj_t inst, scm_subr_t subr)
 {
     DECLEAR_CONTEXT_VARS;
     DECLEAR_COMMON_TYPES;
     scm_obj_t operands = CDAR(inst);
     auto vm = F->arg_begin();
 
-    intptr_t argc = FIXNUM(CADR(operands));
-
     BasicBlock* CONTINUE = BasicBlock::Create(C, "continue", F);
     BasicBlock* FALLBACK = BasicBlock::Create(C, "fallback", F);
 
     auto ans = CreateEntryBlockAlloca(ctx, IntptrTy);
 
-    if (subr->adrs == subr_num_eq) {
-        emit_subr_a2_maybe_fail_num_eq(ctx, inst, subr, ans, CONTINUE, FALLBACK);
+    if (ctx.m_argc == 2 && subr->adrs == subr_num_eq) {
+        emit_subr_inline_may_fail_num_eq_a2(ctx, inst, subr, ans, CONTINUE, FALLBACK);
+    } else {
+        fatal("%s:%u unexpected subr: %s", __FILE__, __LINE__, subr->doc);
     }
 
     IRB.SetInsertPoint(FALLBACK);
@@ -78,9 +71,10 @@ codegen_t::emit_subr_a2_maybe_fail(context_t& ctx, scm_obj_t inst, scm_subr_t su
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_resume_loop));
 
     IRB.SetInsertPoint(CONTINUE);
-    ctx.reg_sp.store(vm, IRB.CreateSub(ctx.reg_sp.load(vm), VALUE_INTPTR(argc << log2_of_intptr_size())));
     ctx.reg_value.store(vm, IRB.CreateLoad(ans));
 }
+
+#endif // ENABLE_INLINE_SUBR
 
 void
 codegen_t::emit_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
@@ -95,7 +89,8 @@ codegen_t::emit_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
 #if ENABLE_INLINE_SUBR
     if (argc == 2) {
         if (subr->adrs == subr_num_eq) {
-            emit_subr_a2_maybe_fail(ctx, inst, subr);
+            emit_subr_inline_may_fail(ctx, argc, inst, subr);
+            ctx.reg_sp.store(vm, IRB.CreateSub(ctx.reg_sp.load(vm), VALUE_INTPTR(argc << log2_of_intptr_size())));
             return;
         }
     }
@@ -132,6 +127,17 @@ codegen_t::emit_ret_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
     DECLEAR_COMMON_TYPES;
     scm_obj_t operands = CDAR(inst);
     auto vm = F->arg_begin();
+
+#if ENABLE_INLINE_SUBR
+    if (ctx.m_argc == 2) {
+        if (subr->adrs == subr_num_eq) {
+            emit_subr_inline_may_fail(ctx, ctx.m_argc, inst, subr);
+            ctx.reg_cache_copy_only_value_and_cont(vm);
+            IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
+            return;
+        }
+    }
+#endif
 
     auto sp = ctx.reg_sp.load(vm);
     auto fp = ctx.reg_fp.load(vm);

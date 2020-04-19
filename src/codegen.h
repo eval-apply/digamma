@@ -222,8 +222,10 @@ private:
     void emit_ret_subr_gloc_of(context_t& ctx, scm_obj_t inst);
 
     llvm::AllocaInst* CreateEntryBlockAlloca(context_t& ctx, llvm::Type* type);
-    void emit_subr_a2_maybe_fail(context_t& ctx, scm_obj_t inst, scm_subr_t subr);
-    void emit_subr_a2_maybe_fail_num_eq(context_t& ctx, scm_obj_t inst, scm_subr_t subr, llvm::AllocaInst* ans, llvm::BasicBlock* CONTINUE, llvm::BasicBlock* FALLBACK);
+#if ENABLE_INLINE_SUBR
+    void emit_subr_inline_may_fail(context_t& ctx, intptr_t argc, scm_obj_t inst, scm_subr_t subr);
+    void emit_subr_inline_may_fail_num_eq_a2(context_t& ctx, scm_obj_t inst, scm_subr_t subr, llvm::AllocaInst* ans, llvm::BasicBlock* CONTINUE, llvm::BasicBlock* FALLBACK);
+#endif
 };
 
 #endif
