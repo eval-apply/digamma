@@ -713,11 +713,6 @@ printer_t::write(scm_obj_t ht, scm_obj_t obj)
             port_puts(m_port, string->name);
             return;
         }
-        if (VMINSTP(obj)) {
-            int opcode = m_vm->instruction_to_opcode(obj);
-            port_puts(m_port, m_vm->m_heap->inherent_symbol(opcode)->name);
-            return;
-        }
         if (CHARP(obj)) {
             int c = CHAR(obj);
             if (m_escape) {
@@ -1031,11 +1026,6 @@ printer_t::write(scm_obj_t ht, scm_obj_t obj)
                 default: format(" type(%d)", socket->socktype); break;
             }
             format(" ~a>", socket_name_string(m_vm->m_heap, socket));
-            return;
-        }
-        case TC_SHAREDQUEUE: {
-            scm_sharedqueue_t queue = (scm_sharedqueue_t)obj;
-            format("#<shared-queue %d/%d 0x%x>", queue->queue.count(), queue->queue.limit(), queue);
             return;
         }
         case TC_PORT: {

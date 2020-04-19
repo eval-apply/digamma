@@ -51,6 +51,18 @@ codegen_t::emit_push_gloc(context_t& ctx, scm_obj_t inst)
     scm_obj_t operands = CDAR(inst);
     auto vm = F->arg_begin();
 
+#if ENABLE_COMPILE_REFERENCE && ENABLE_COMPILE_DEFERRED
+    scm_obj_t obj = ((scm_gloc_t)operands)->value;
+    if (CLOSUREP(obj)) {
+        scm_closure_t closure = (scm_closure_t)obj;
+        if (closure->code == NULL && !HDR_CLOSURE_INSPECTED(closure->hdr)) {
+            closure->hdr = closure->hdr | MAKEBITS(1, HDR_CLOSURE_INSPECTED_SHIFT);
+            m_compile_queue.push_back((scm_closure_t)obj);
+            m_usage.refs++;
+        }
+    }
+#endif
+
     auto gloc = IRB.CreateBitOrPointerCast(VALUE_INTPTR(operands), IntptrPtrTy);
     auto val = CREATE_LOAD_GLOC_REC(gloc, value);
     emit_push_vm_stack(ctx, val);
@@ -237,21 +249,8 @@ codegen_t::emit_apply_iloc(context_t& ctx, scm_obj_t inst)
 
     auto val = IRB.CreateLoad(emit_lookup_iloc(ctx, CAR(operands)));
     ctx.reg_value.store(vm, val);
-
-    BasicBlock* undef_true = BasicBlock::Create(C, "undef_true", F);
-    BasicBlock* undef_false = BasicBlock::Create(C, "undef_false", F);
-    auto undef_cond = IRB.CreateICmpEQ(val, VALUE_INTPTR(scm_undef));
-    IRB.CreateCondBr(undef_cond, undef_true, undef_false);
-
-    // valid
-    IRB.SetInsertPoint(undef_false);
     ctx.reg_cache_copy(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_apply));
-
-    // invalid
-    IRB.SetInsertPoint(undef_true);
-    ctx.reg_cache_copy_except_value_and_sp(vm);
-    IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_error_apply_iloc));
 }
 */
 
@@ -268,81 +267,6 @@ codegen_t::emit_apply_iloc(context_t& ctx, scm_obj_t inst)
     ctx.reg_cache_copy(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_apply));
 }
-
-/*
-void
-codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
-{
-    DECLEAR_CONTEXT_VARS;
-    DECLEAR_COMMON_TYPES;
-    scm_obj_t operands = CDAR(inst);
-    auto vm = F->arg_begin();
-
-    scm_gloc_t gloc = (scm_gloc_t)CAR(operands);
-    scm_obj_t obj = gloc->value;
-    if (obj == ctx.m_top_level_closure && HDR_CLOSURE_ARGS(ctx.m_top_level_closure->hdr) == ctx.m_argc) {
-#if DEBUG_CODEGEN
-        puts("+ self recursive");
-#endif
-        emit_prepair_apply(ctx, ctx.m_top_level_closure);
-        ctx.reg_cache_copy(vm);
-
-        auto call2 = IRB.CreateCall(ctx.m_top_level_function, { vm });
-        call2->setTailCallKind(CallInst::TCK_MustTail);
-        IRB.CreateRet(call2);
-        return;
-    } else {
-        if (CLOSUREP(obj) && SYMBOLP(gloc->variable)) {
-            scm_symbol_t symbol = (scm_symbol_t)gloc->variable;
-            if (strchr(symbol->name, IDENTIFIER_RENAME_DELIMITER)) {
-#if DEBUG_CODEGEN
-                printf("+ uninterned gloc found: %s\n", symbol->name);
-#endif
-                scm_closure_t closure = (scm_closure_t)obj;
-                if (closure->env == NULL) {
-                    Function* F2 = emit_inner_function(ctx, closure);
-                    if (F2 != NULL) {
-                        m_usage.inners++;
-                        emit_prepair_apply(ctx, closure);
-                        ctx.reg_cache_copy(vm);
-                        auto call2 = IRB.CreateCall(F2, {vm});
-                        call2->setTailCallKind(CallInst::TCK_MustTail);
-                        IRB.CreateRet(call2);
-                        return;
-                    } else {
-#if VERBOSE_CODEGEN
-                        puts("emit_apply_gloc: out of top level context, F2 == NULL");
-#endif
-                    }
-                } else {
-#if VERBOSE_CODEGEN
-                    puts("emit_apply_gloc: out of top level context, closure->env != NULL");
-#endif
-                }
-            }
-        }
-
-        auto gloc = IRB.CreateBitOrPointerCast(VALUE_INTPTR(CAR(operands)), IntptrPtrTy);
-        auto val = CREATE_LOAD_GLOC_REC(gloc, value);
-        ctx.reg_value.store(vm, val);
-
-        BasicBlock* undef_true = BasicBlock::Create(C, "undef_true", F);
-        BasicBlock* undef_false = BasicBlock::Create(C, "undef_false", F);
-        auto undef_cond = IRB.CreateICmpEQ(val, VALUE_INTPTR(scm_undef));
-        IRB.CreateCondBr(undef_cond, undef_true, undef_false);
-
-        // valid
-        IRB.SetInsertPoint(undef_false);
-        ctx.reg_cache_copy(vm);
-        IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_apply));
-
-        // invalid
-        IRB.SetInsertPoint(undef_true);
-        ctx.reg_cache_copy(vm);
-        IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_error_apply_gloc));
-    }
-}
-*/
 
 void
 codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
@@ -379,7 +303,7 @@ codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
                 m_usage.inners++;
                 emit_prepair_apply(ctx, closure);
                 ctx.reg_cache_copy_except_value(vm);
-                auto call2 = IRB.CreateCall(F2, {vm});
+                auto call2 = IRB.CreateCall(F2, { vm });
                 call2->setTailCallKind(CallInst::TCK_MustTail);
                 IRB.CreateRet(call2);
                 return;
@@ -418,6 +342,17 @@ codegen_t::emit_apply_gloc(context_t& ctx, scm_obj_t inst)
         }
     }
 
+#if ENABLE_COMPILE_REFERENCE && ENABLE_COMPILE_DEFERRED
+    if (CLOSUREP(obj)) {
+        scm_closure_t closure = (scm_closure_t)obj;
+        if (closure->code == NULL && !HDR_CLOSURE_INSPECTED(closure->hdr)) {
+            closure->hdr = closure->hdr | MAKEBITS(1, HDR_CLOSURE_INSPECTED_SHIFT);
+            m_compile_queue.push_back((scm_closure_t)obj);
+            m_usage.refs++;
+        }
+    }
+#endif
+
     auto val = CREATE_LOAD_GLOC_REC(IRB.CreateBitOrPointerCast(VALUE_INTPTR(CAR(operands)), IntptrPtrTy), value);
     ctx.reg_value.store(vm, val);
     ctx.reg_cache_copy(vm);
@@ -447,21 +382,8 @@ codegen_t::emit_ret_iloc(context_t& ctx, scm_obj_t inst)
 
     auto val = IRB.CreateLoad(emit_lookup_iloc(ctx, operands));
     ctx.reg_value.store(vm, val);
-
-    BasicBlock* undef_true = BasicBlock::Create(C, "undef_true", F);
-    BasicBlock* undef_false = BasicBlock::Create(C, "undef_false", F);
-    auto undef_cond = IRB.CreateICmpEQ(val, VALUE_INTPTR(scm_undef));
-    IRB.CreateCondBr(undef_cond, undef_true, undef_false);
-
-    // valid
-    IRB.SetInsertPoint(undef_false);
     ctx.reg_cache_copy_only_value_and_cont(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
-
-    // invalid
-    IRB.SetInsertPoint(undef_true);
-    ctx.reg_cache_copy_except_value_and_sp(vm);
-    IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_error_ret_iloc));
 }
 */
 
@@ -492,7 +414,6 @@ codegen_t::emit_ret_cons(context_t& ctx, scm_obj_t inst)
 
     auto sp_minus_1 = IRB.CreateLoad(IRB.CreateGEP(IRB.CreateBitOrPointerCast(sp, IntptrPtrTy), VALUE_INTPTR(-1)));
     auto c_make_pair = M->getOrInsertFunction("c_make_pair", IntptrTy, IntptrPtrTy, IntptrTy, IntptrTy);
-    // ctx.reg_cache_copy_except_value(vm);
     ctx.reg_value.store(vm, IRB.CreateCall(c_make_pair, { vm, sp_minus_1, val }));
     ctx.reg_cache_copy_only_value_and_cont(vm);
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
@@ -1663,6 +1584,18 @@ codegen_t::emit_gloc(context_t& ctx, scm_obj_t inst)
     scm_obj_t operands = CDAR(inst);
     auto vm = F->arg_begin();
 
+#if ENABLE_COMPILE_REFERENCE && ENABLE_COMPILE_DEFERRED
+    scm_obj_t obj = ((scm_gloc_t)operands)->value;
+    if (CLOSUREP(obj)) {
+        scm_closure_t closure = (scm_closure_t)obj;
+        if (closure->code == NULL && !HDR_CLOSURE_INSPECTED(closure->hdr)) {
+            closure->hdr = closure->hdr | MAKEBITS(1, HDR_CLOSURE_INSPECTED_SHIFT);
+            m_compile_queue.push_back((scm_closure_t)obj);
+            m_usage.refs++;
+        }
+    }
+#endif
+
     auto gloc = IRB.CreateBitOrPointerCast(VALUE_INTPTR(operands), IntptrPtrTy);
     ctx.reg_value.store(vm, CREATE_LOAD_GLOC_REC(gloc, value));
 }
@@ -1879,7 +1812,7 @@ codegen_t::emit_push_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
     auto argv = IRB.CreateSub(sp, VALUE_INTPTR(argc << log2_of_intptr_size()));
 
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
-    auto subrType = FunctionType::get(IntptrTy, {IntptrPtrTy, IntptrTy, IntptrTy}, false);
+    auto subrType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy, IntptrTy }, false);
     auto ptr = ConstantExpr::getIntToPtr(VALUE_INTPTR(subr->adrs), subrType->getPointerTo());
     auto val = IRB.CreateCall(ptr, { vm, VALUE_INTPTR(argc), argv });
 
@@ -1936,7 +1869,7 @@ codegen_t::emit_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
     auto argv = IRB.CreateSub(sp, VALUE_INTPTR(argc << log2_of_intptr_size()));
 
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
-    auto subrType = FunctionType::get(IntptrTy, {IntptrPtrTy, IntptrTy, IntptrTy}, false);
+    auto subrType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy, IntptrTy }, false);
     auto ptr = ConstantExpr::getIntToPtr(VALUE_INTPTR(subr->adrs), subrType->getPointerTo());
     auto val = IRB.CreateCall(ptr, {vm, VALUE_INTPTR(argc), argv});
 
@@ -1990,7 +1923,7 @@ codegen_t::emit_ret_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
     auto argc = VALUE_INTPTR(ctx.m_argc);
 
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
-    auto subrType = FunctionType::get(IntptrTy, {IntptrPtrTy, IntptrTy, IntptrTy}, false);
+    auto subrType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy, IntptrTy }, false);
     auto ptr = ConstantExpr::getIntToPtr(VALUE_INTPTR(subr->adrs), subrType->getPointerTo());
     auto val = IRB.CreateCall(ptr, { vm, argc, fp });
 
@@ -2045,7 +1978,7 @@ codegen_t::emit_cond_pairp(context_t& ctx, Value* obj, BasicBlock* pair_true, Ba
     IRB.CreateCondBr(cond1, cond1_true, pair_false);
     IRB.SetInsertPoint(cond1_true);
     auto hdr = IRB.CreateLoad(IRB.CreateBitOrPointerCast(obj, IntptrPtrTy));
-    auto cond2 = IRB.CreateICmpNE(IRB.CreateAnd(hdr, VALUE_INTPTR(0xf)), VALUE_INTPTR(0xa));
+    auto cond2 = IRB.CreateICmpNE(IRB.CreateAnd(hdr, VALUE_INTPTR(HDR_ATTR_MASKBITS)), VALUE_INTPTR(HDR_ATTR_BOXED));
     IRB.CreateCondBr(cond2, pair_true, pair_false);
 }
 

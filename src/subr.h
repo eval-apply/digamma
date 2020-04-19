@@ -9,6 +9,7 @@
 #include "arith.h"
 
 void init_subr_ffi(object_heap_t* heap);
+void init_subr_c_ffi(object_heap_t* heap);
 void init_subr_base_arith(object_heap_t* heap);
 void init_subr_r5rs_arith(object_heap_t* heap);
 void init_subr_base(object_heap_t* heap);
@@ -23,7 +24,6 @@ void init_subr_hash(object_heap_t* heap);
 void init_subr_list(object_heap_t* heap);
 void init_subr_file(object_heap_t* heap);
 void init_subr_process(object_heap_t* heap);
-void init_subr_thread(object_heap_t* heap);
 void init_subr_others(object_heap_t* heap);
 void init_subr_codegen(object_heap_t* heap);
 

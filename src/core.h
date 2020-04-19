@@ -33,10 +33,12 @@
 #if ENABLE_LLVM_JIT
   #define ENABLE_COMPILE_GLOC       1
   #define ENABLE_COMPILE_DEFERRED   1
+  #define ENABLE_COMPILE_REFERENCE  1
   #define ENABLE_COMPILE_THREAD     1
 #else
   #define ENABLE_COMPILE_GLOC       0
   #define ENABLE_COMPILE_DEFERRED   0
+  #define ENABLE_COMPILE_REFERENCE  0
   #define ENABLE_COMPILE_THREAD     0
 #endif
 
@@ -66,7 +68,6 @@
 #define THREAD_LOCAL_SLAB_CACHE     1
 #define LOCKFREE_ALLOC              1
 #define CONCURRENT_COLLECT          1
-#define PARALLEL_COLLECT            0
 #define BOOT_R6RS_COMPLIANT_SYNTAX  0
 #define UNSPECIFIED_GLOC_IS_SPECIAL 0
 
@@ -78,12 +79,9 @@
 #define USE_FLONUM_CONST            1
 #define USE_FAST_DYNAMIC_WIND       1
 #define USE_EXTENDED_BVECTOR_SYNTAX 1
-#define USE_PARALLEL_VM             1
 #define USE_CONST_LITERAL           1
 #define USE_MULTIBYTE_READ          1
 #define USE_MULTIBYTE_WRITE         1
-#define USE_CRITICAL_SECTION        0
-#define USE_SPINLOCK                0
 
 #if defined(FD_CLOEXEC)
   #define USE_CLOEXEC               1
@@ -99,7 +97,7 @@
   #define SYSTEM_EXTENSION_PATH     "/usr/local/lib/digamma"
 #endif
 
-#define MAX_VIRTUAL_MACHINE         32
+//#define MAX_VIRTUAL_MACHINE         32
 
 #define array_sizeof(a) ((int)(sizeof(a)/sizeof(a[0])))
 

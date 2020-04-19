@@ -184,7 +184,6 @@
     cadddr
     caddr
     cadr
-    call-shared-object
     call-with-bytevector-output-port
     call-with-current-continuation
     call-with-input-file
@@ -244,7 +243,10 @@
     closure-codegen
     cmwc-random-real
     cmwc-random-u32
+    codegen-cdecl-callback
+    codegen-cdecl-callout
     codegen-queue-count
+    codegen-queue-push!
     collect
     collect-notify
     collect-stack-notify
@@ -326,7 +328,6 @@
     display-codegen-statistics
     display-heap-statistics
     display-object-statistics
-    display-thread-status
     div
     div-and-mod
     div0
@@ -361,6 +362,7 @@
     equal-hash
     equal?
     eqv?
+    errno/string
     error
     error-handling-mode
     error?
@@ -599,7 +601,6 @@
     list?
     load
     load-shared-object
-    local-heap-object?
     log
     lookahead-char
     lookahead-u8
@@ -610,7 +611,6 @@
     make-assertion-violation
     make-bytevector
     make-bytevector-mapping
-    make-callback-trampoline
     make-cmwc-random-state
     make-core-hashtable
     make-custom-binary-input-port
@@ -653,7 +653,6 @@
     make-rectangular
     make-serious-condition
     make-shared-core-hashtable
-    make-shared-queue
     make-socket
     make-string
     make-string-hashtable
@@ -708,7 +707,6 @@
     number?
     numerator
     odd?
-    on-primordial-thread?
     opaque
     open-builtin-data-input-port
     open-bytevector-input-port
@@ -813,7 +811,6 @@
     scheme-load-paths
     scheme-load-verbose
     sealed
-    serializable?
     serious-condition?
     set!
     set-car!
@@ -823,12 +820,6 @@
     set-current-output-port!
     set-port-position!
     set-top-level-value!
-    shared-object-errno
-    shared-queue-pop!
-    shared-queue-push!
-    shared-queue-shutdown
-    shared-queue?
-    shutdown-object?
     shutdown-output-port
     simple-conditions
     sin
@@ -841,9 +832,6 @@
     socket-send
     socket-shutdown
     socket?
-    spawn
-    spawn-heap-limit
-    spawn-timeout
     sqrt
     standard-error-port
     standard-input-port
@@ -910,7 +898,6 @@
     tan
     textual-port?
     time-usage
-    timeout-object?
     top-level-bound?
     top-level-value
     transcoded-port

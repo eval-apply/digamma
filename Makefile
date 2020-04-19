@@ -1,5 +1,5 @@
 #   Makefile for Linux, Darwin
-#   Requirements: GNU Make, llvm-10, libffi
+#   Requirements: GNU Make, llvm-10
 #   Options: DESTDIR, PREFIX, DATAMODEL(ILP32/LP64)
 
 PROG = digamma
@@ -13,14 +13,12 @@ CXX = clang++
 
 CXXFLAGS = -pipe -fstrict-aliasing -fPIC `llvm-config --cxxflags` -fcxx-exceptions
 
-SRCS = file.cpp main.cpp vm0.cpp object_heap_compact.cpp subr_flonum.cpp vm1.cpp object_set.cpp \
-       subr_hash.cpp vm2.cpp object_slab.cpp subr_list.cpp vmm.cpp serialize.cpp \
-       vm3.cpp port.cpp subr_others.cpp arith.cpp printer.cpp subr_port.cpp subr_r5rs_arith.cpp \
-       equiv.cpp reader.cpp subr_base.cpp uuid.cpp subr_thread.cpp subr_socket.cpp \
-       subr_unicode.cpp hash.cpp subr_base_arith.cpp ucs4.cpp ioerror.cpp subr_bitwise.cpp utf8.cpp \
-       main.cpp subr_bvector.cpp violation.cpp object_factory.cpp subr_file.cpp subr_process.cpp \
-       object_heap.cpp subr_fixnum.cpp bit.cpp list.cpp fasl.cpp socket.cpp subr_ffi.cpp subr_codegen.cpp \
-       codegen.cpp
+SRCS = file.cpp main.cpp object_heap_compact.cpp subr_flonum.cpp vm0.cpp vm1.cpp vm2.cpp vm3.cpp object_set.cpp \
+       object_slab.cpp subr_list.cpp serialize.cpp vm3.cpp port.cpp subr_others.cpp arith.cpp printer.cpp \
+			 subr_port.cpp subr_r5rs_arith.cpp equiv.cpp reader.cpp subr_base.cpp uuid.cpp subr_socket.cpp subr_hash.cpp \
+       subr_unicode.cpp hash.cpp subr_base_arith.cpp ucs4.cpp ioerror.cpp subr_bitwise.cpp utf8.cpp subr_bvector.cpp \
+			 violation.cpp object_factory.cpp subr_file.cpp subr_process.cpp object_heap.cpp subr_fixnum.cpp bit.cpp \
+			 list.cpp fasl.cpp socket.cpp subr_c_ffi.cpp subr_codegen.cpp codegen.cpp
 
 VPATH = src
 
@@ -55,16 +53,12 @@ ifneq (,$(findstring Linux, $(UNAME)))
       CXXFLAGS += -march=x86-64
     endif
   endif
-  LDLIBS += -pthread -Wl,--no-as-needed -ldl -lffi
+  LDLIBS += -pthread -Wl,--no-as-needed -ldl
 endif
 
 ifneq (,$(findstring Darwin, $(UNAME)))
-  # export PKG_CONFIG_PATH=/usr/local/opt/libffi/lib/pkgconfig
-  # CPPFLAGS += -DNO_FFI
   # CXXFLAGS += -O0 -glldb
-  CPPFLAGS += $(shell pkg-config libffi --cflags)
   CXXFLAGS += -O3 -momit-leaf-frame-pointer
-  LDFLAGS += $(shell pkg-config libffi --libs)
   LDLIBS += $(shell llvm-config --ldflags --system-libs --libs all)
 endif
 
@@ -78,14 +72,6 @@ all: $(PROG) $(EXTS)
 
 $(PROG): $(OBJS)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
-
-vm1.s: vm1.cpp
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
-	-fverbose-asm -masm=att -S src/vm1.cpp
-
-vm1.o: vm1.cpp
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
-	-c src/vm1.cpp
 
 install: all stdlib sitelib extension
 	mkdir -p -m755 $(DESTDIR)$(PREFIX)/bin
@@ -142,6 +128,9 @@ check: all
 	@echo '----------------------------------------'
 	@echo 'r7rs-test.scm:'
 	@./$(PROG) --r7rs --heap-limit=128 --acc=/tmp --clean-acc --sitelib=./test:./sitelib ./test/r7rs-test.scm
+	@echo '----------------------------------------'
+	@echo 'c-ffi-test.scm:'
+	@./$(PROG) --heap-limit=128 --acc=/tmp --clean-acc --sitelib=./test:./sitelib ./test/c-ffi-test.scm
 	@echo '----------------------------------------'
 	@echo 'syntax-rule-stress-test.scm:'
 	@./$(PROG) --heap-limit=128 --acc=/tmp --clean-acc --sitelib=./test:./sitelib ./test/syntax-rule-stress-test.scm

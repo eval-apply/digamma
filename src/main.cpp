@@ -3,7 +3,6 @@
 
 #include "core.h"
 #include "vm.h"
-#include "vmm.h"
 
 #if ENABLE_LLVM_JIT
   #include <llvm/Support/InitLLVM.h>
@@ -13,6 +12,9 @@
 
 int main_command_line_argc;
 const char** main_command_line_argv;
+
+extern void init_c_ffi();
+extern void destroy_c_ffi();
 
 #if defined(NO_TLS)
   pthread_key_t s_current_vm;
@@ -103,6 +105,8 @@ signal_waiter(void* param)
     return NULL;
 }
 
+static VM s_primordial_vm;
+
 int main(int argc, const char** argv)
 {
     srandom((unsigned int)fmod(msec() * 1000.0, INT_MAX));
@@ -113,6 +117,7 @@ int main(int argc, const char** argv)
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
+    init_c_ffi();
 #endif
 #ifndef NDEBUG
     struct foo { char i; };
@@ -163,30 +168,22 @@ int main(int argc, const char** argv)
     pthread_t tid;
     MTVERIFY(pthread_create(&tid, NULL, signal_waiter, &set));
     MTVERIFY(pthread_detach(tid));
-    object_heap_t* heap = new object_heap_t;
+#if defined(NO_TLS)
+    MTVERIFY(pthread_key_create(&s_current_vm, NULL));
+#endif
     int heap_limit = opt_heap_limit(argc, argv) * 1024 * 1024;
     int heap_init = 4 * 1024 * 1024;
 #ifndef NDEBUG
     printf("heap_limit %d heap_init %d\n", heap_limit, heap_init);
 #endif
-    heap->init_primordial(heap_limit, heap_init);
-    VM rootVM;
-    rootVM.init_root(heap);
-#if defined(NO_TLS)
-    MTVERIFY(pthread_key_create(&s_current_vm, NULL));
-    MTVERIFY(pthread_setspecific(s_current_vm, &rootVM));
-#else
-    s_current_vm = &rootVM;
-#endif
-#if USE_PARALLEL_VM
-    VMM vmm;
-    vmm.init(&rootVM, 128);
-    rootVM.boot();
-    rootVM.standalone();
-    vmm.destroy();
-#else
-    rootVM.boot();
-    rootVM.standalone();
+    object_heap_t* heap = new object_heap_t;
+    heap->init(heap_limit, heap_init);
+    s_primordial_vm.init(heap);
+    s_primordial_vm.boot();
+    set_current_vm(&s_primordial_vm);
+    s_primordial_vm.standalone();
+#if ENABLE_LLVM_JIT
+    destroy_c_ffi();
 #endif
     return 0;
 }

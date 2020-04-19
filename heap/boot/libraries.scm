@@ -440,7 +440,6 @@
                         restricted-print-line-length
                         record-print-nesting-limit
                         macro-expand compile compile-coreform closure-code
-                        closure-codegen codegen-queue-count display-codegen-statistics
                         current-environment current-macro-environment current-variable-environment current-dynamic-environment
                         system-environment interaction-environment
                         make-environment
@@ -491,9 +490,6 @@
                         ; ffi
                         load-shared-object
                         lookup-shared-object
-                        call-shared-object
-                        make-callback-trampoline
-                        shared-object-errno
                         bytevector-c-short-ref bytevector-c-unsigned-short-ref bytevector-c-short-set!
                         bytevector-c-int-ref bytevector-c-unsigned-int-ref bytevector-c-int-set!
                         bytevector-c-long-ref bytevector-c-unsigned-long-ref bytevector-c-long-set!
@@ -507,6 +503,13 @@
                         string->utf8/nul
                         bytevector-c-strlen
 
+                        codegen-cdecl-callout
+                        codegen-cdecl-callback
+                        codegen-queue-count
+                        codegen-queue-push!
+                        display-codegen-statistics
+                        closure-codegen
+
                         getenv
                         gethostname
                         system
@@ -514,24 +517,9 @@
                         process-spawn
                         process-shell-command
                         process-wait
+                        errno/string
 
                         current-exception-printer
-
-                        make-shared-queue
-                        shared-queue?
-                        shared-queue-shutdown
-                        shared-queue-push!
-                        shared-queue-pop!
-                        serializable?
-                        timeout-object?
-                        shutdown-object?
-
-                        spawn
-                        spawn-timeout
-                        spawn-heap-limit
-                        display-thread-status
-                        on-primordial-thread?
-                        local-heap-object?
 
                         make-uuid
                         time-usage
