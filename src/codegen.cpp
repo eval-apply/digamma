@@ -15,6 +15,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils.h>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -262,6 +263,8 @@ codegen_t::optimizeModule(ThreadSafeModule TSM)
 
     legacy::FunctionPassManager FPM(&M);
     B.populateFunctionPassManager(FPM);
+    FPM.add(llvm::createPromoteMemoryToRegisterPass());
+
     FPM.doInitialization();
     for (Function &F : M) FPM.run(F);
     FPM.doFinalization();
@@ -779,6 +782,15 @@ codegen_t::transform(context_t ctx, scm_obj_t inst, bool insert_stack_check)
     }
 }
 
+AllocaInst*
+codegen_t::CreateEntryBlockAlloca(context_t& ctx, llvm::Type* type)
+{
+    DECLEAR_CONTEXT_VARS;
+    DECLEAR_COMMON_TYPES;
+    IRBuilder<> TB(&F->getEntryBlock(), F->getEntryBlock().begin());
+    return TB.CreateAlloca(type);
+}
+
 void
 codegen_t::display_codegen_statistics(scm_port_t port)
 {
@@ -796,3 +808,4 @@ codegen_t::display_codegen_statistics(scm_port_t port)
 
 #include "codegen.inst0.cpp"
 #include "codegen.inst1.cpp"
+#include "codegen.inst2.cpp"
