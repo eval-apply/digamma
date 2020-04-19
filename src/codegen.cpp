@@ -796,3 +796,4 @@ codegen_t::display_codegen_statistics(scm_port_t port)
 
 #include "codegen.inst0.cpp"
 #include "codegen.inst1.cpp"
+#include "codegen.inst2.cpp"
