@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+=======
+#!nobacktrace
+;;; Copyright (c) 2004-2020 Yoshikatsu Fujita / LittleWing Company Limited.
+;;; See LICENSE file for terms and conditions of use.
+
+>>>>>>> master
 (library (digamma widget)
   (export make-text-widget)
   (import (rnrs)
@@ -95,4 +102,8 @@
                     (glDrawArrays GL_TRIANGLES 0 6)
                     (loop (cdr s) (+ x (* scale (Glyph-advance glyph))) y ch))
                   (loop (cdr s) x y ch))))))))
+<<<<<<< HEAD
 ) ;[end]
+=======
+  ) ;[end]
+>>>>>>> master
