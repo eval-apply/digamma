@@ -1,45 +1,10 @@
-/*
-Function*
-codegen_t::emit_define_prepare_call(context_t& ctx)
+llvm::AllocaInst*
+codegen_t::emit_alloca(context_t& ctx, llvm::Type* type)
 {
-    LLVMContext& C = ctx.m_llvm_context;
-    Module* M = ctx.m_module;
-
-    DECLEAR_COMMON_TYPES;
-
-    Function* F = Function::Create(FunctionType::get(VoidTy, {IntptrPtrTy, IntptrPtrTy}, false), Function::WeakAnyLinkage, "prepare_call", M);
-    F->setCallingConv(CallingConv::Fast);
-#if USE_LLVM_ATTRIBUTES
-    F->addFnAttr(Attribute::NoUnwind);
-    F->addParamAttr(0, Attribute::NoAlias);
-    F->addParamAttr(0, Attribute::NoCapture);
-    F->addParamAttr(1, Attribute::NoAlias);
-    F->addParamAttr(1, Attribute::NoCapture);
-#endif
-
-    IRBuilder<> IRB(BasicBlock::Create(C, "entry", F));
-    auto vm = F->arg_begin();
-    auto cont = F->arg_begin() + 1;
-
-    CREATE_STORE_CONT_REC(cont, trace, VALUE_INTPTR(scm_unspecified));
-    // cont->fp = m_fp;
-    CREATE_STORE_CONT_REC(cont, fp, CREATE_LOAD_VM_REG(vm, m_fp));
-    // cont->env = m_env;
-    CREATE_STORE_CONT_REC(cont, env, CREATE_LOAD_VM_REG(vm, m_env));
-    // cont->up = m_cont;
-    CREATE_STORE_CONT_REC(cont, up, CREATE_LOAD_VM_REG(vm, m_cont));
-    // m_sp = m_fp = (scm_obj_t*)(cont + 1);
-    auto ea1 = IRB.CreateBitOrPointerCast(IRB.CreateGEP(cont, VALUE_INTPTR(sizeof(vm_cont_rec_t) / sizeof(intptr_t))), IntptrTy);
-    CREATE_STORE_VM_REG(vm, m_sp, ea1);
-    CREATE_STORE_VM_REG(vm, m_fp, ea1);
-    // m_cont = &cont->up;
-    auto ea2 = IRB.CreateBitOrPointerCast(IRB.CreateGEP(cont, VALUE_INTPTR(offsetof(vm_cont_rec_t, up) / sizeof(intptr_t))), IntptrTy);
-    CREATE_STORE_VM_REG(vm, m_cont, ea2);
-    IRB.CreateRetVoid();
-
-    return F;
+    DECLEAR_CONTEXT_VARS;
+    IRBuilder<> TB(&F->getEntryBlock(), F->getEntryBlock().begin());
+    return TB.CreateAlloca(type);
 }
-*/
 
 Function*
 codegen_t::emit_inner_function(context_t& ctx, scm_closure_t closure)
@@ -71,11 +36,9 @@ codegen_t::emit_inner_function(context_t& ctx, scm_closure_t closure)
     Module* M = ctx.m_module;
 
     DECLEAR_COMMON_TYPES;
-    Function* F = Function::Create(FunctionType::get(IntptrTy, {IntptrPtrTy}, false), Function::ExternalLinkage, function_id, M);
+    Function* F = Function::Create(FunctionType::get(IntptrTy, { IntptrPtrTy }, false), Function::PrivateLinkage, function_id, M);
 #if USE_LLVM_ATTRIBUTES
-    F->addFnAttr(Attribute::NoUnwind);
-    F->addParamAttr(0, Attribute::NoAlias);
-    F->addParamAttr(0, Attribute::NoCapture);
+    for (Argument& argument : F->args()) { argument.addAttr(Attribute::NoAlias); argument.addAttr(Attribute::NoCapture); }
 #endif
 
     BasicBlock* ENTRY = BasicBlock::Create(C, "entry", F);
@@ -99,28 +62,30 @@ codegen_t::emit_inner_function(context_t& ctx, scm_closure_t closure)
 void
 codegen_t::emit_stack_overflow_check(context_t& ctx, int nbytes)
 {
+
     DECLEAR_CONTEXT_VARS;
     DECLEAR_COMMON_TYPES;
     auto vm = F->arg_begin();
 
-    if (nbytes) {
-        if (nbytes >= VM_STACK_BYTESIZE) fatal("%s:%u vm stack size too small", __FILE__, __LINE__);
-        auto sp = ctx.reg_sp.load(vm);
-        auto stack_limit = CREATE_LOAD_VM_REG(vm, m_stack_limit);
-        BasicBlock* stack_ok = BasicBlock::Create(C, "stack_ok", F);
-        BasicBlock* stack_overflow = BasicBlock::Create(C, "stack_overflow", F);
-        Value* stack_cond = IRB.CreateICmpULT(IRB.CreateAdd(sp, VALUE_INTPTR(nbytes)), stack_limit);
-        IRB.CreateCondBr(stack_cond, stack_ok, stack_overflow);
+    ctx.reg_cache_clear();
 
-        IRB.SetInsertPoint(stack_overflow);
-        ctx.reg_cache_copy(vm);
-        auto c_collect_stack = M->getOrInsertFunction("c_collect_stack", VoidTy, IntptrPtrTy, IntptrTy);
-        IRB.CreateCall(c_collect_stack, {vm, VALUE_INTPTR(nbytes)});
-        IRB.CreateBr(stack_ok);
+    if (nbytes == 0) return;
+    if (nbytes >= VM_STACK_BYTESIZE) fatal("%s:%u vm stack size too small", __FILE__, __LINE__);
 
-        IRB.SetInsertPoint(stack_ok);
-        ctx.reg_cache_clear();
-    }
+    auto stack_limit = CREATE_LOAD_VM_REG(vm, m_stack_limit);
+    BasicBlock* stack_ok = BasicBlock::Create(C, "stack_ok", F);
+    BasicBlock* stack_overflow = BasicBlock::Create(C, "stack_overflow", F);
+    Value* stack_cond = IRB.CreateICmpULT(IRB.CreateAdd(CREATE_LOAD_VM_REG(vm, m_sp), VALUE_INTPTR(nbytes)), stack_limit);
+    IRB.CreateCondBr(stack_cond, stack_ok, stack_overflow, ctx.likely_true);
+
+    IRB.SetInsertPoint(stack_overflow);
+    auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
+    auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_collect_stack), thunkType->getPointerTo());
+    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(nbytes) });
+
+    IRB.CreateBr(stack_ok);
+
+    IRB.SetInsertPoint(stack_ok);
 }
 
 Value*
@@ -130,35 +95,24 @@ codegen_t::emit_lookup_env(context_t& ctx, intptr_t depth)
     DECLEAR_COMMON_TYPES;
     auto vm = F->arg_begin();
 
-    if (depth == 0) {
-        auto env = IRB.CreateBitOrPointerCast(IRB.CreateSub(ctx.reg_env.load(vm), VALUE_INTPTR(offsetof(vm_env_rec_t, up))), IntptrPtrTy);
-        return env;
-    } else if (depth == 1) {
-        auto lnk1 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(ctx.reg_env.load(vm), IntptrPtrTy));
-        auto env = IRB.CreateBitOrPointerCast(IRB.CreateSub(lnk1, VALUE_INTPTR(offsetof(vm_env_rec_t, up))), IntptrPtrTy);
-        return env;
-    } else if (depth == 2) {
-        auto lnk1 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(ctx.reg_env.load(vm), IntptrPtrTy));
-        auto lnk2 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(lnk1, IntptrPtrTy));
-        auto env = IRB.CreateBitOrPointerCast(IRB.CreateSub(lnk2, VALUE_INTPTR(offsetof(vm_env_rec_t, up))), IntptrPtrTy);
-        return env;
-    } else if (depth == 3) {
-        auto lnk1 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(ctx.reg_env.load(vm), IntptrPtrTy));
-        auto lnk2 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(lnk1, IntptrPtrTy));
-        auto lnk3 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(lnk2, IntptrPtrTy));
-        auto env = IRB.CreateBitOrPointerCast(IRB.CreateSub(lnk3, VALUE_INTPTR(offsetof(vm_env_rec_t, up))), IntptrPtrTy);
-        return env;
-    } else if (depth == 4) {
-        auto lnk1 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(ctx.reg_env.load(vm), IntptrPtrTy));
-        auto lnk2 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(lnk1, IntptrPtrTy));
-        auto lnk3 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(lnk2, IntptrPtrTy));
-        auto lnk4 = IRB.CreateLoad(IRB.CreateBitOrPointerCast(lnk3, IntptrPtrTy));
-        auto env = IRB.CreateBitOrPointerCast(IRB.CreateSub(lnk4, VALUE_INTPTR(offsetof(vm_env_rec_t, up))), IntptrPtrTy);
-        return env;
+    if (depth > 4) {
+        ctx.reg_env.writeback(vm);
+        auto thunkType = FunctionType::get(IntptrPtrTy, { IntptrPtrTy, IntptrTy }, false);
+        auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_lookup_env), thunkType->getPointerTo());
+        return IRB.CreateCall(thunk, { vm, VALUE_INTPTR(depth) });
     }
-    ctx.reg_env.writeback(vm);
-    auto c_lookup_env = M->getOrInsertFunction("c_lookup_env", IntptrPtrTy, IntptrPtrTy, IntptrTy);
-    return IRB.CreateCall(c_lookup_env, { vm, VALUE_INTPTR(depth) });
+    Value* target;
+    auto env0 = ctx.reg_env.load(vm);
+    if (depth == 0) {
+        target = env0;
+    } else {
+        target = IRB.CreateLoad(IRB.CreateBitOrPointerCast(env0, IntptrPtrTy));
+        for (int i = 1; i < depth; i++) {
+            target = IRB.CreateLoad(IRB.CreateBitOrPointerCast(target, IntptrPtrTy));
+        }
+    }
+    auto env1 = IRB.CreateGEP(IRB.CreateBitOrPointerCast(target, IntptrPtrTy), VALUE_INTPTR(- offsetof(vm_env_rec_t, up) / sizeof(intptr_t)));
+    return IRB.CreateBitOrPointerCast(env1, IntptrPtrTy);
 }
 
 Value*
@@ -186,8 +140,9 @@ codegen_t::emit_lookup_iloc(context_t& ctx, intptr_t depth, intptr_t index)
 #endif
     }
     ctx.reg_env.writeback(vm);
-    auto c_lookup_iloc = M->getOrInsertFunction("c_lookup_iloc", IntptrPtrTy, IntptrPtrTy, IntptrTy, IntptrTy);
-    return IRB.CreateCall(c_lookup_iloc, { vm, VALUE_INTPTR(depth), VALUE_INTPTR(index) });
+    auto thunkType = FunctionType::get(IntptrPtrTy, { IntptrPtrTy, IntptrTy, IntptrTy }, false);
+    auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_lookup_iloc), thunkType->getPointerTo());
+    return IRB.CreateCall(thunk, { vm, VALUE_INTPTR(depth), VALUE_INTPTR(index) });
 }
 
 Value*
@@ -205,7 +160,9 @@ codegen_t::emit_push_vm_stack(context_t& ctx, Value* val)
 
     auto sp = ctx.reg_sp.load(vm);
     IRB.CreateStore(val, IRB.CreateBitOrPointerCast(sp, IntptrPtrTy));
-    ctx.reg_sp.store(vm, IRB.CreateAdd(sp, VALUE_INTPTR(sizeof(intptr_t))));
+    auto ea0 = IRB.CreateGEP(IRB.CreateBitOrPointerCast(sp, IntptrPtrTy), VALUE_INTPTR(1));
+    auto ea1 = IRB.CreateBitOrPointerCast(ea0, IntptrTy);
+    ctx.reg_sp.store(vm, ea1);
 }
 
 void
@@ -219,9 +176,10 @@ codegen_t::emit_prepair_apply(context_t& ctx, scm_closure_t closure)
     auto env = IRB.CreateBitOrPointerCast(ctx.reg_sp.load(vm), IntptrPtrTy);
     CREATE_STORE_ENV_REC(env, count, VALUE_INTPTR(argc));
     CREATE_STORE_ENV_REC(env, up, VALUE_INTPTR(closure->env));
-    auto ea1 = IRB.CreateAdd(IRB.CreateBitOrPointerCast(env, IntptrTy), VALUE_INTPTR(sizeof(vm_env_rec_t)));
-    ctx.reg_sp.store(vm, ea1);
-    ctx.reg_fp.store(vm, ea1);
-    ctx.reg_env.store(vm, CREATE_LEA_ENV_REC(env, up));
+    auto ea0 = IRB.CreateGEP(IRB.CreateBitOrPointerCast(env, IntptrPtrTy), VALUE_INTPTR(sizeof(vm_env_rec_t) / sizeof(intptr_t)));
+    auto ea1 = IRB.CreateBitOrPointerCast(ea0, IntptrTy);
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(closure->pc));
+    ctx.reg_env.store(vm, CREATE_LEA_ENV_REC(env, up));
+    ctx.reg_fp.store(vm, ea1);
+    ctx.reg_sp.store(vm, ea1);
 }

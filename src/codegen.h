@@ -11,9 +11,10 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Module.h>
 
-#define USE_LLVM_ATTRIBUTES       1
+#define USE_LLVM_ATTRIBUTES       0
 #define USE_LLVM_OPTIMIZE         1
 #define USE_ILOC_OPTIMIZE         1
 #define USE_REG_CACHE             1
@@ -55,6 +56,8 @@ class codegen_t {
         reg_cache_t<offsetof(VM, m_cont)> reg_cont;
         reg_cache_t<offsetof(VM, m_value)> reg_value;
         bool m_disable_reg_cache;
+        llvm::MDNode* likely_true;
+        llvm::MDNode* likely_false;
         void reg_cache_copy(llvm::Value* vm);
         void reg_cache_copy_only_value_and_cont(llvm::Value* vm);
         void reg_cache_copy_except_sp(llvm::Value* vm);
@@ -65,9 +68,18 @@ class codegen_t {
         void set_local_var_count(int depth, int count);
         void set_local_var_count(int depth, scm_closure_t closure);
         int get_local_var_count(int depth);
+        llvm::MDNode* get_branch_weight(int n, int m);
         context_t(llvm::LLVMContext& llvm_context, llvm::IRBuilder<>& irb)
           : m_llvm_context(llvm_context), m_irb(irb), m_argc(0), m_depth(0), m_disable_reg_cache(false),
-            reg_sp(this), reg_fp(this), reg_env(this), reg_cont(this), reg_value(this) { }
+            reg_sp(this), reg_fp(this), reg_env(this), reg_cont(this), reg_value(this) {
+        #if ENABLE_BRANCH_WEIGHTS
+            likely_true = get_branch_weight(100, 1);
+            likely_false = get_branch_weight(1, 100);
+        #else
+            likely_true = get_branch_weight(50, 50);
+            likely_false = get_branch_weight(50, 50);
+        #endif
+        }
     };
     class reg_cache_synchronize {
         codegen_t::context_t& ctx;
@@ -124,10 +136,10 @@ public:
 private:
     void compile_each(scm_closure_t closure);
     int calc_stack_size(scm_obj_t inst);
+    llvm::AllocaInst* emit_alloca(context_t& ctx, llvm::Type* type);
     void emit_stack_overflow_check(context_t& ctx, int nbytes);
     void emit_push_vm_stack(context_t& ctx, llvm::Value* val);
     void emit_prepair_apply(context_t& ctx, scm_closure_t closure);
-    // llvm::Function* emit_define_prepare_call(context_t& ctx);
     void emit_cond_pairp(context_t& ctx, llvm::Value* obj, llvm::BasicBlock* pair_true, llvm::BasicBlock* pair_false);
     void emit_cond_symbolp(context_t& ctx, llvm::Value* obj, llvm::BasicBlock* symbol_true, llvm::BasicBlock* symbol_false);
     llvm::Function* emit_inner_function(context_t& ctx, scm_closure_t closure);
@@ -135,8 +147,8 @@ private:
     llvm::Value* emit_lookup_iloc(context_t& ctx, intptr_t depth, intptr_t index);
     llvm::Value* emit_lookup_iloc(context_t& ctx, scm_obj_t inst);
     llvm::Value* emit_cmp_inst(context_t& ctx, cc_t cc, llvm::Value* lhs, llvm::Value* rhs);
-    void emit_cc_n_iloc(context_t& ctx, scm_obj_t inst, cc_t cc, const char* cfunc);
-    void emit_cc_iloc(context_t& ctx, scm_obj_t inst, cc_t cc, const char* cfunc);
+    void emit_cc_n_iloc(context_t& ctx, scm_obj_t inst, cc_t cc, void* c_func);
+    void emit_cc_iloc(context_t& ctx, scm_obj_t inst, cc_t cc, void* c_func);
     void emit_push_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr);
     void emit_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr);
     void emit_ret_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr);

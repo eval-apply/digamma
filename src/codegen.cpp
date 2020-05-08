@@ -16,6 +16,7 @@
 #include <llvm/Support/Error.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils.h>
+#include <llvm/Transforms/IPO.h>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -24,13 +25,6 @@ using namespace llvm::orc;
 #include "codegen.thunk.cpp"
 
 static ExitOnError ExitOnErr;
-
-static int log2_of_intptr_size()
-{
-    if (sizeof(intptr_t) == 4) return 2;
-    if (sizeof(intptr_t) == 8) return 3;
-    return (int)log2(sizeof(intptr_t));
-}
 
 template<int byte_offset>
 llvm::Value* codegen_t::reg_cache_t<byte_offset>::load(llvm::Value* vm) {
@@ -180,6 +174,13 @@ codegen_t::context_t::get_local_var_count(int depth)
     return 0;
 }
 
+llvm::MDNode*
+codegen_t::context_t::get_branch_weight(int n, int m)
+{
+    llvm::MDBuilder MDB(m_llvm_context);
+    return MDB.createBranchWeights(n, m);
+}
+
 codegen_t::codegen_t(VM* vm) : m_vm(vm), m_debug(false) { }
 
 void
@@ -258,12 +259,13 @@ codegen_t::optimizeModule(ThreadSafeModule TSM)
 {
     Module &M = *TSM.getModuleUnlocked();
     PassManagerBuilder B;
-    B.OptLevel = 2;
+    B.OptLevel = 3;
     B.SizeLevel = 1;
+    // B.Inliner = llvm::createFunctionInliningPass();
 
     legacy::FunctionPassManager FPM(&M);
     B.populateFunctionPassManager(FPM);
-    FPM.add(llvm::createPromoteMemoryToRegisterPass());
+    // FPM.add(llvm::createPromoteMemoryToRegisterPass());
 
     FPM.doInitialization();
     for (Function &F : M) FPM.run(F);
@@ -271,6 +273,7 @@ codegen_t::optimizeModule(ThreadSafeModule TSM)
 
     legacy::PassManager MPM;
     B.populateModulePassManager(MPM);
+
     MPM.run(M);
 
 #if PRINT_IR
@@ -346,7 +349,7 @@ codegen_t::compile_each(scm_closure_t closure)
     DECLEAR_COMMON_TYPES;
 
     auto M = std::make_unique<Module>(module_id, C);
-    Function* F = Function::Create(FunctionType::get(IntptrTy, {IntptrPtrTy}, false), Function::ExternalLinkage, function_id, M.get());
+    Function* F = Function::Create(FunctionType::get(IntptrTy, { IntptrPtrTy }, false), Function::ExternalLinkage, function_id, M.get());
 #if USE_LLVM_ATTRIBUTES
     for (Argument& argument : F->args()) { argument.addAttr(Attribute::NoAlias); argument.addAttr(Attribute::NoCapture); }
 #endif
@@ -391,7 +394,7 @@ codegen_t::get_function(context_t& ctx, scm_closure_t closure)
 
     if (!is_compiled(closure)) fatal("%s:%u closure is not compiled", __FILE__, __LINE__);
     intptr_t (*adrs)(intptr_t) = (intptr_t (*)(intptr_t))(closure->code);
-    auto subrType = FunctionType::get(IntptrTy, {IntptrPtrTy}, false);
+    auto subrType = FunctionType::get(IntptrTy, { IntptrPtrTy }, false);
     Function* func = (Function*)ConstantExpr::getIntToPtr(VALUE_INTPTR(adrs), subrType->getPointerTo());
     return func;
 }

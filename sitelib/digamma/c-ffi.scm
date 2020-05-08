@@ -8,14 +8,16 @@
           c-function/weak
           c-callback
           string->utf8/nul
-          bytevector-mapping?
+          bytevector->pinned-c-void*
           make-bytevector-mapping
+          bytevector-mapping?
           lookup-shared-object
           codegen-cdecl-callout
-          codegen-cdecl-callback)
+          codegen-cdecl-callback
+          c-main-argc
+          c-main-argv)
 
   (import (core)
-          (digamma assert)
           (only (digamma c-types) sizeof:int sizeof:long sizeof:size_t sizeof:void*))
 
   (define c-type-class
