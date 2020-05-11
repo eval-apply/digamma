@@ -1,4 +1,4 @@
-; digamma sandbox/main.scm
+;; ./digamma --r6rs --top-level-program demo/widget-demo.scm
 
 (import (core)
         (digamma glcorearb)
