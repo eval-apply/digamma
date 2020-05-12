@@ -292,7 +292,7 @@ static void* compile_callout_thunk(uintptr_t adrs, const char* caller_signature,
 
     auto calloutFunctionType = function_type(C, callee_signature, strcmp(caller_signature, callee_signature) != 0);
     auto func = ConstantExpr::getIntToPtr(VALUE_INTPTR(adrs), calloutFunctionType->getPointerTo());
-    auto retval = IRB.CreateCall(func, args);
+    auto retval = IRB.CreateCall(calloutFunctionType, func, args);
     if (callee_signature[0] == 'i') {
         IRB.CreateRet(VALUE_INTPTR(scm_unspecified));
     } else {
@@ -344,7 +344,7 @@ compile_callback_thunk(VM* vm, uintptr_t trampoline_uid, const char* signature)
 
     auto thunkType = FunctionType::get(IntptrTy, { IntptrTy, IntptrTy, IntptrTy }, true);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_call_scheme), thunkType->getPointerTo());
-    Value* retval = IRB.CreateCall(thunk, args);
+    Value* retval = IRB.CreateCall(thunkType, thunk, args);
 
     if (signature[0] == 'i') {
         IRB.CreateRetVoid();
