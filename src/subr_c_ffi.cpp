@@ -167,7 +167,6 @@ void init_c_ffi()
 void destroy_c_ffi()
 {
     if (s_c_ffi) {
-        ExitOnErr(s_c_ffi->runDestructors());
         delete s_c_ffi.release();
         s_c_ffi = NULL;
     }
