@@ -1415,7 +1415,7 @@ codegen_t::emit_set_iloc(context_t& ctx, scm_obj_t inst)
 
     auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_set_iloc), thunkType->getPointerTo());
-    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+    IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
 }
 
 void
@@ -1453,7 +1453,7 @@ codegen_t::emit_enclose(context_t& ctx, scm_obj_t inst)
     int argc = FIXNUM(operands);
     auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_enclose), thunkType->getPointerTo());
-    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(argc) });
+    IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(argc) });
 }
 
 void
@@ -1471,7 +1471,7 @@ codegen_t::emit_push_close(context_t& ctx, scm_obj_t inst)
 
     auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_push_close), thunkType->getPointerTo());
-    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+    IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
 }
 
 void
@@ -1490,7 +1490,7 @@ codegen_t::emit_ret_close(context_t& ctx, scm_obj_t inst)
     ctx.reg_cache_copy(vm);
     auto thunkType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_ret_close), thunkType->getPointerTo());
-    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+    IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
     IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_pop_cont));
 }
 
@@ -1509,7 +1509,7 @@ codegen_t::emit_close(context_t& ctx, scm_obj_t inst)
 
     auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_close), thunkType->getPointerTo());
-    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+    IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
 }
 
 void
@@ -1587,7 +1587,7 @@ codegen_t::emit_gloc(context_t& ctx, scm_obj_t inst)
         CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
         auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
         auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_error_gloc), thunkType->getPointerTo());
-        IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+        IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
         IRB.CreateRet(VALUE_INTPTR(VM::native_thunk_resume_loop));
         IRB.SetInsertPoint(CONTINUE);
     }
@@ -1727,7 +1727,7 @@ codegen_t::emit_nadd_iloc(context_t& ctx, scm_obj_t inst)
 
     auto thunkType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_nadd_iloc), thunkType->getPointerTo());
-    auto res = IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+    auto res = IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
 
     auto success_cond = IRB.CreateICmpNE(res, VALUE_INTPTR(0));
     BasicBlock* fallback_fail = BasicBlock::Create(C, "fallback_fail", F);
@@ -1755,7 +1755,7 @@ codegen_t::emit_extend_enclose(context_t& ctx, scm_obj_t inst)
 
     auto thunkType = FunctionType::get(VoidTy, { IntptrPtrTy, IntptrTy }, false);
     auto thunk = ConstantExpr::getIntToPtr(VALUE_INTPTR(c_extend_enclose), thunkType->getPointerTo());
-    IRB.CreateCall(thunk, { vm, VALUE_INTPTR(operands) });
+    IRB.CreateCall(thunkType, thunk, { vm, VALUE_INTPTR(operands) });
     ctx.set_local_var_count(ctx.m_depth, 1);
 }
 
@@ -1819,7 +1819,7 @@ codegen_t::emit_push_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
     auto subrType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy, IntptrPtrTy }, false);
     auto ptr = ConstantExpr::getIntToPtr(VALUE_INTPTR(subr->adrs), subrType->getPointerTo());
-    auto val = IRB.CreateCall(ptr, { vm, VALUE_INTPTR(argc), argv });
+    auto val = IRB.CreateCall(subrType, ptr, { vm, VALUE_INTPTR(argc), argv });
 
     ctx.reg_sp.store(vm, IRB.CreateBitOrPointerCast(argv, IntptrTy));
     emit_push_vm_stack(ctx, val);
@@ -1933,7 +1933,7 @@ codegen_t::emit_ret_subr(context_t& ctx, scm_obj_t inst, scm_subr_t subr)
     CREATE_STORE_VM_REG(vm, m_pc, VALUE_INTPTR(inst));
     auto subrType = FunctionType::get(IntptrTy, { IntptrPtrTy, IntptrTy, IntptrTy }, false);
     auto ptr = ConstantExpr::getIntToPtr(VALUE_INTPTR(subr->adrs), subrType->getPointerTo());
-    auto val = IRB.CreateCall(ptr, { vm, argc, fp });
+    auto val = IRB.CreateCall(subrType, ptr, { vm, argc, fp });
 
     ctx.reg_value.store(vm, val);
 
